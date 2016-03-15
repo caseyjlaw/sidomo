@@ -98,9 +98,22 @@ def dodo(do, image, sharedir, display):
 
     # get image if not available locally
     imnames = [im['RepoTags'][0] for im in client.images()]
-    if (not any([image in imname for imname in imnames])) and client.search(image):
-        print('Image {} not found locally. Pulling from docker hub.'.format(image))
-        client.pull(image)
+    if not any([image in imname for imname in imnames]):
+        if client.search(image):
+            if ':' in image:
+                repo, tag = image.split(':')
+            else:
+                repo = image
+                tag = 'latest'
+
+            print('Image {} not found locally. Pulling {}:{} from docker hub.'.format(image, repo, tag))
+            client.pull(repo, tag=tag)
+            image = '{}:{}'.format(repo, tag)
+        else:
+            print('Image {} not found locally or on docker hub.'.format(image))
+            return
+    else:
+        image = [imname for imname in imnames if image in imname][0]
 
     # mount directory in docker
     if sharedir:
@@ -119,3 +132,5 @@ def dodo(do, image, sharedir, display):
     with Container(image, volumes=volumes, cleanup=True, environment=environment) as c:
         for output_line in c.run(do):
             print('{}:\t {}'.format(image, output_line.decode('utf-8')))
+
+        print('\nShutting down {} container'.format(image))
